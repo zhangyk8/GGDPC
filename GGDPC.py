@@ -7,7 +7,6 @@ Peak Clustering (DPC) and Gradient-Guided Density Peak Clustering (GGDPC) algori
 """
 
 import numpy as np
-from sympy import gamma
 from utils import gaussian_kde, gaussian_ms_onestep
 
 #=======================================================================================#
@@ -119,9 +118,28 @@ def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, retur
     if center_quantile is not None:
         center_mask = gamma > np.quantile(gamma, center_quantile)
     else:
-        from scipy import stats
-        z_scores = stats.zscore(gamma)
-        center_mask = z_scores > 3 # Example threshold for z-score
+        # gamma_std = np.std(gamma)
+        # if gamma_std == 0:
+        #     center_mask = np.zeros(n_samples, dtype=bool)
+        #     center_mask[np.argmax(gamma)] = True
+        # else:
+        #     z_scores = (gamma - np.mean(gamma)) / gamma_std
+        #     center_mask = z_scores > 3  # Example threshold for z-score
+        from sklearn.linear_model import LinearRegression
+        log_den = np.log(den_est + 1e-12)
+        log_delta = np.log(delta + 1e-12)
+        X_reg = log_den.reshape(-1, 1)
+        y_reg = log_delta
+        reg = LinearRegression().fit(X_reg, y_reg)
+        delta_pred = reg.predict(X_reg)
+        residuals = log_delta - delta_pred
+        residual_std = np.std(residuals)
+        if residual_std == 0:
+            center_mask = np.zeros(n_samples, dtype=bool)
+            center_mask[np.argmax(gamma)] = True
+        else:
+            z_scores = residuals / residual_std
+            center_mask = z_scores > 3  # Example threshold for z-score
 
     cluster_centers = np.where(center_mask)[0]
     if cluster_centers.size == 0:
@@ -227,7 +245,9 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
                 k_eff = min(k_higher, higher_ind.size)
                 knn_pos = np.argpartition(dists, kth=k_eff-1)[:k_eff]
                 knn_idx = higher_ind[knn_pos]
-                grad_new[idx_i] = X[knn_idx].mean(axis=0)
+                knn_dists = dists[knn_pos]
+                weights = 1.0 / np.maximum(knn_dists, 1e-12)
+                grad_new[idx_i] = np.average(X[knn_idx], axis=0, weights=weights)
     else:
         den_est = np.asarray(den_est)
         if den_est.shape != (n_samples,):
@@ -265,13 +285,29 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
     if center_quantile is not None:
         center_mask = gamma > np.quantile(gamma, center_quantile)
     else:
-        gamma_std = np.std(gamma)
-        if gamma_std == 0:
+        # gamma_std = np.std(gamma)
+        # if gamma_std == 0:
+        #     center_mask = np.zeros(n_samples, dtype=bool)
+        #     center_mask[np.argmax(gamma)] = True
+        # else:
+        #     z_scores = (gamma - np.mean(gamma)) / gamma_std
+        #     center_mask = z_scores > 3  # Example threshold for z-score
+        from sklearn.linear_model import LinearRegression
+        log_den = np.log(den_est + 1e-12)
+        log_delta = np.log(delta + 1e-12)
+        X_reg = log_den.reshape(-1, 1)
+        y_reg = log_delta
+        reg = LinearRegression().fit(X_reg, y_reg)
+        delta_pred = reg.predict(X_reg)
+        residuals = log_delta - delta_pred
+        residual_std = np.std(residuals)
+        if residual_std == 0:
             center_mask = np.zeros(n_samples, dtype=bool)
             center_mask[np.argmax(gamma)] = True
         else:
-            z_scores = (gamma - np.mean(gamma)) / gamma_std
+            z_scores = residuals / residual_std
             center_mask = z_scores > 3  # Example threshold for z-score
+
 
     cluster_centers = np.where(center_mask)[0]
     if cluster_centers.size == 0:
