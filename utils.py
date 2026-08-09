@@ -7,6 +7,8 @@ Description: Utility functions for the Gradient-Guided Density Peak Clustering
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 
 #=====================================================================================#
 
@@ -200,3 +202,24 @@ def gaussian_ms_onestep(x, data, h=None, verbose=False):
     ms_new = np.dot(kernel_vals, data) / f_hat
     
     return ms_new
+
+
+def plot_clusters(X, clu, start, end, centers, directed=False, title=None):
+    segments = np.stack([X[start], X[end]], axis=1)
+
+    # plot all nodes
+    pts = np.vstack([X[start], X[end]])
+    plt.scatter(X[:, 0], X[:, 1], c=clu, cmap='viridis', s=10)
+    plt.scatter(X[centers, 0], X[centers, 1], c='red', marker='X', s=70, label='Cluster Centers')
+    if directed:
+        plt.quiver(X[start, 0], X[start, 1], X[end, 0] - X[start, 0], X[end, 1] - X[start, 1], 
+                   angles='xy', scale_units='xy', scale=1, color='black', width=0.003, alpha=0.7)
+    else:
+        lc = LineCollection(segments, colors="black", linewidths=1, alpha=0.7)
+        plt.gca().add_collection(lc)
+    # plt.gca().autoscale()
+    plt.legend()
+    plt.title(title)
+    plt.xlabel("X1")
+    plt.ylabel("X2")
+    plt.show()

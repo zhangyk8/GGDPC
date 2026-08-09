@@ -11,7 +11,7 @@ from utils import gaussian_kde, gaussian_ms_onestep
 
 #=======================================================================================#
 
-def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, return_details=False):
+def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, scaling=True, return_details=False):
     """
     Density Peak Clustering (DPC) algorithm.
 
@@ -29,8 +29,10 @@ def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, retur
             Default is 0 (no points are considered noise).
         center_quantile : float, optional
             Quantile for identifying cluster centers. If None, the cluster centers will be
-            detected via z-score normalization of the product of density and distance to the
+            detected via z-score normalization of the 1NN uphill distance to the
             nearest higher-density point.
+        scaling : bool, optional
+            If True, the input data will be standardized before computing the kernel density estimation.
         return_details : bool, optional
             If True, also return a dictionary with additional details about the clustering.
     
@@ -65,9 +67,15 @@ def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, retur
 
     # Compute density estimates if not provided
     if den_est is None:
+        from sklearn.preprocessing import StandardScaler
         from sklearn.neighbors import KernelDensity
-        kde = KernelDensity(kernel='gaussian', bandwidth='silverman').fit(X)
-        den_est = np.exp(kde.score_samples(X))
+        if scaling:
+            X_kde = StandardScaler().fit_transform(X)
+        else:
+            X_kde = X
+        kde = KernelDensity(kernel='gaussian', bandwidth='silverman').fit(X_kde)
+        den_est = np.exp(kde.score_samples(X_kde))
+        # den_est = gaussian_kde(X, X)
     elif isinstance(den_est, str) and den_est == "cutoff":
         if dist_mat is None:
             from sklearn.metrics import pairwise_distances
@@ -113,37 +121,36 @@ def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, retur
             delta[idx_i] = dists[j]
             nearest_higher_density[idx_i] = higher_ind[j]
 
-    # Identify cluster centers based on center_quantile or z-score of (density * delta)
-    gamma = den_est * delta
+    # Identify cluster centers based on center_quantile or z-score of delta (1NN uphill distance)
     if center_quantile is not None:
-        center_mask = gamma > np.quantile(gamma, center_quantile)
+        center_mask = delta > np.quantile(delta, center_quantile)
     else:
-        # gamma_std = np.std(gamma)
-        # if gamma_std == 0:
-        #     center_mask = np.zeros(n_samples, dtype=bool)
-        #     center_mask[np.argmax(gamma)] = True
-        # else:
-        #     z_scores = (gamma - np.mean(gamma)) / gamma_std
-        #     center_mask = z_scores > 3  # Example threshold for z-score
-        from sklearn.linear_model import LinearRegression
-        log_den = np.log(den_est + 1e-12)
-        log_delta = np.log(delta + 1e-12)
-        X_reg = log_den.reshape(-1, 1)
-        y_reg = log_delta
-        reg = LinearRegression().fit(X_reg, y_reg)
-        delta_pred = reg.predict(X_reg)
-        residuals = log_delta - delta_pred
-        residual_std = np.std(residuals)
-        if residual_std == 0:
+        delta_std = np.std(delta)
+        if delta_std == 0:
             center_mask = np.zeros(n_samples, dtype=bool)
-            center_mask[np.argmax(gamma)] = True
+            center_mask[np.argmax(delta)] = True
         else:
-            z_scores = residuals / residual_std
+            z_scores = (delta - np.mean(delta)) / delta_std
             center_mask = z_scores > 3  # Example threshold for z-score
+        # from sklearn.linear_model import LinearRegression
+        # log_den = np.log(den_est + 1e-12)
+        # log_delta = np.log(delta + 1e-12)
+        # X_reg = log_den.reshape(-1, 1)
+        # y_reg = log_delta
+        # reg = LinearRegression().fit(X_reg, y_reg)
+        # delta_pred = reg.predict(X_reg)
+        # residuals = log_delta - delta_pred
+        # residual_std = np.std(residuals)
+        # if residual_std == 0:
+        #     center_mask = np.zeros(n_samples, dtype=bool)
+        #     center_mask[np.argmax(delta)] = True
+        # else:
+        #     z_scores = residuals / residual_std
+        #     center_mask = z_scores > 3  # Example threshold for z-score
 
     cluster_centers = np.where(center_mask)[0]
     if cluster_centers.size == 0:
-        cluster_centers = np.array([np.argmax(gamma)])
+        cluster_centers = np.array([np.argmax(delta)])
 
     # Initialize all cluster labels as noise (-1)
     labels = np.full(n_samples, -1, dtype=int)
@@ -170,7 +177,8 @@ def DPC(X, den_est=None, dist_mat=None, den_thres=0, center_quantile=None, retur
         return labels
 
 
-def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, return_details=False):
+
+def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, scaling=True, return_details=False):
     """
     Gradient-Guided Density Peak Clustering (GGDPC) algorithm.
 
@@ -192,6 +200,8 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
             Quantile for identifying cluster centers. If None, the cluster centers will be
             detected via z-score normalization of the product of density and distance to the nearest 
             higher-density point.
+        scaling : bool, optional
+            If True, the input data will be standardized before computing the kernel density estimation.
         return_details : bool, optional
             If True, also return a dictionary with additional details about the clustering.
     
@@ -220,10 +230,16 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
         raise ValueError("center_quantile must be in [0, 1].")
     
     # Compute density estimates if not provided
+    from sklearn.preprocessing import StandardScaler
+
     if den_est is None:
-        den_est = gaussian_kde(X, X)
+        if scaling:
+            X_kde = StandardScaler().fit_transform(X)
+        else:
+            X_kde = X
+        den_est = gaussian_kde(X_kde, X_kde)
         if grad_new is None:
-            grad_new = gaussian_ms_onestep(X, X)
+            grad_new = gaussian_ms_onestep(X_kde, X_kde)
     elif isinstance(den_est, str) and den_est == "cutoff":
         from sklearn.metrics import pairwise_distances
         dist_mat = pairwise_distances(X)
@@ -231,29 +247,27 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
         dc = np.quantile(upper, 0.3)
         den_est = np.sum(dist_mat < dc, axis=1).astype(float) - 1.0
         if grad_new is None:
-            # Find the k nearest neighbors with higher densities for each point in X
+            # Find the k nearest neighbors for each point in X
             # and compute their average locations. If this set is null, then set the location as the current point 
-            k_higher = np.ceil(np.log(n_samples)).astype(int)
+            k_eff = min(int(np.ceil(np.log(n_samples))), n_samples - 1)
             grad_new = np.zeros_like(X)
-            sorted_indices = np.argsort(-den_est)
-            for rank, idx_i in enumerate(sorted_indices):
-                higher_ind = sorted_indices[:rank]
-                if higher_ind.size == 0:
-                    grad_new[idx_i] = X[idx_i]
-                    continue
-                dists = dist_mat[idx_i, higher_ind]
-                k_eff = min(k_higher, higher_ind.size)
-                knn_pos = np.argpartition(dists, kth=k_eff-1)[:k_eff]
-                knn_idx = higher_ind[knn_pos]
-                knn_dists = dists[knn_pos]
-                weights = 1.0 / np.maximum(knn_dists, 1e-12)
-                grad_new[idx_i] = np.average(X[knn_idx], axis=0, weights=weights)
+            for idx_i in range(n_samples):
+                dists = dist_mat[idx_i,:].copy()
+                dists[idx_i] = np.inf
+                knn_idx = np.argpartition(dists, kth=k_eff-1)[:k_eff]
+                # knn_dists = dists[knn_pos]
+                # weights = 1.0 / np.maximum(knn_dists, 1e-12)
+                grad_new[idx_i] = np.average(X[knn_idx], axis=0)
     else:
         den_est = np.asarray(den_est)
         if den_est.shape != (n_samples,):
             raise ValueError("den_est must have shape (n_samples,)")
         if grad_new is None:
-            grad_new = gaussian_ms_onestep(X, X)
+            if scaling:
+                X_kde = StandardScaler().fit_transform(X)
+            else:
+                X_kde = X
+            grad_new = gaussian_ms_onestep(X_kde, X_kde)
     
     grad_new = np.asarray(grad_new, dtype=float)
     if grad_new.shape != X.shape:
@@ -280,38 +294,40 @@ def GGDPC(X, den_est=None, grad_new=None, den_thres=0, center_quantile=None, ret
         delta[idx_i] = np.linalg.norm(X[idx_i] - X[higher_ind][j])
         nearest_higher_density[idx_i] = higher_ind[j]
 
-    # Identify cluster centers based on center_quantile or z-score of (density * delta)
-    gamma = den_est * delta
+    # This must be outside the loop
+    if not np.all(np.isfinite(delta)):
+        raise ValueError("delta contains NaN or infinity.")
+    
+    # Identify cluster centers based on center_quantile or z-score of delta (1NN uphill distance)
     if center_quantile is not None:
-        center_mask = gamma > np.quantile(gamma, center_quantile)
+        center_mask = delta > np.quantile(delta, center_quantile)
     else:
-        # gamma_std = np.std(gamma)
-        # if gamma_std == 0:
-        #     center_mask = np.zeros(n_samples, dtype=bool)
-        #     center_mask[np.argmax(gamma)] = True
-        # else:
-        #     z_scores = (gamma - np.mean(gamma)) / gamma_std
-        #     center_mask = z_scores > 3  # Example threshold for z-score
-        from sklearn.linear_model import LinearRegression
-        log_den = np.log(den_est + 1e-12)
-        log_delta = np.log(delta + 1e-12)
-        X_reg = log_den.reshape(-1, 1)
-        y_reg = log_delta
-        reg = LinearRegression().fit(X_reg, y_reg)
-        delta_pred = reg.predict(X_reg)
-        residuals = log_delta - delta_pred
-        residual_std = np.std(residuals)
-        if residual_std == 0:
+        delta_std = np.std(delta)
+        if delta_std == 0:
             center_mask = np.zeros(n_samples, dtype=bool)
-            center_mask[np.argmax(gamma)] = True
+            center_mask[np.argmax(delta)] = True
         else:
-            z_scores = residuals / residual_std
+            z_scores = (delta - np.mean(delta)) / delta_std
             center_mask = z_scores > 3  # Example threshold for z-score
-
+        # from sklearn.linear_model import LinearRegression
+        # log_den = np.log(den_est + 1e-12)
+        # log_delta = np.log(delta + 1e-12)
+        # X_reg = log_den.reshape(-1, 1)
+        # y_reg = log_delta
+        # reg = LinearRegression().fit(X_reg, y_reg)
+        # delta_pred = reg.predict(X_reg)
+        # residuals = log_delta - delta_pred
+        # residual_std = np.std(residuals)
+        # if residual_std == 0:
+        #     center_mask = np.zeros(n_samples, dtype=bool)
+        #     center_mask[np.argmax(delta)] = True
+        # else:
+        #     z_scores = residuals / residual_std
+        #     center_mask = z_scores > 3  # Example threshold for z-score
 
     cluster_centers = np.where(center_mask)[0]
     if cluster_centers.size == 0:
-        cluster_centers = np.array([np.argmax(gamma)])
+        cluster_centers = np.array([np.argmax(delta)])
 
     # Initialize all cluster labels as noise (-1)
     labels = np.full(n_samples, -1, dtype=int)
