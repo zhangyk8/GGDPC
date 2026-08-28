@@ -36,7 +36,7 @@ def record_result(name, true_labels, pred_labels, elapsed):
     print(f"Adjusted Rand Index: {ari:.4f}")
     print(f"Runtime: {elapsed:.3f} seconds")
 
-for n in [100, 500, 1000, 2000, 5000]:
+for n in [500, 1000, 2000, 5000, 8000]:
     X_dat, true_labels = sample_gaussian_mixture(n_samples=n, 
                                                  mu_lst=np.array([[0, 0], [1, 0]]), 
                                                  sigma_lst=np.array([0.3**2, 0.3**2]), 
@@ -158,4 +158,4 @@ for n in [100, 500, 1000, 2000, 5000]:
     record_result("DPC-MDNN", true_labels, DPC_MDNN_labels, elapsed)
 
     summary = pd.DataFrame(results.values())
-    summary.to_csv(f"./Results/results_GMM_{n}_samples_job_{job_id}.csv", index=False)
+    summary.to_csv(f"./Results/results_GMM_{n}_samples_job_{job_id}_new.csv", index=False)

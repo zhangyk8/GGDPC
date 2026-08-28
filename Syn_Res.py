@@ -14,11 +14,11 @@ import pandas as pd
 
 B = 1000
 all_results = []
-for n in [100, 500, 1000, 2000, 5000]:
+for n in [500, 1000, 2000, 5000, 8000]:
     # Load the results from each job
     results_list = []
     for job_id in range(1, B + 1):
-        file_path = f"./Results/results_GMM_{n}_samples_job_{job_id}.csv"
+        file_path = f"./Results/results_GMM_{n}_samples_job_{job_id}_new.csv"
         try:
             df = pd.read_csv(file_path)
             df['n_samples'] = n  # Add a column for sample size
@@ -33,4 +33,4 @@ for n in [100, 500, 1000, 2000, 5000]:
 # Combine all sample sizes into a single DataFrame
 if all_results:
     final_results = pd.concat(all_results, ignore_index=True)
-    final_results.to_csv("./Results/GMM_results.csv", index=False)
+    final_results.to_csv("./Syn_Results/GMM_results_new.csv", index=False)
