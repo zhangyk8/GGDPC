@@ -105,6 +105,39 @@ def sample_gaussian_mixture(n_samples, mu_lst, sigma_lst, weights=None, random_s
     return samples
 
 
+def _gaussian_kernel(x, data, h=None, verbose=False):
+    """Return a Gaussian-kernel matrix and its validated bandwidth."""
+    x = np.asarray(x, dtype=float)
+    data = np.asarray(data, dtype=float)
+
+    if x.ndim != 2 or data.ndim != 2:
+        raise ValueError("x and data must both be 2D arrays.")
+    if x.shape[1] != data.shape[1]:
+        raise ValueError("x and data must have the same number of columns.")
+    if data.shape[0] == 0 or data.shape[1] == 0:
+        raise ValueError("data must contain at least one row and one column.")
+    if not np.all(np.isfinite(x)) or not np.all(np.isfinite(data)):
+        raise ValueError("x and data must contain only finite values.")
+
+    n, d = data.shape
+    if h is None:
+        data_scale = np.mean(np.std(data, axis=0))
+        if data_scale == 0:
+            data_scale = 1.0
+        h = (4 / (d + 2)) ** (1 / (d + 4)) * n ** (-1 / (d + 4)) * data_scale
+    h = float(h)
+    if not np.isfinite(h) or h <= 0:
+        raise ValueError("h must be positive and finite.")
+    if verbose:
+        print(f"The current bandwidth is {h}.\n")
+
+    from scipy.spatial.distance import cdist
+    sqdist = cdist(x, data, metric="sqeuclidean")
+
+    kernel_values = np.exp(-sqdist / (2 * h**2))
+    return kernel_values, h
+
+
 def gaussian_kde(x, data, h=None, verbose=False):
     """
     The d-dim Euclidean kernel density estimator with Gaussian kernel.
@@ -125,33 +158,11 @@ def gaussian_kde(x, data, h=None, verbose=False):
         f_hat : ndarray of shape (m,)
             KDE evaluated at query points.
     """
-    x = np.asarray(x, dtype=float)
     data = np.asarray(data, dtype=float)
-
-    if x.ndim != 2 or data.ndim != 2:
-        raise ValueError("x and data must both be 2D arrays.")
-    if x.shape[1] != data.shape[1]:
-        raise ValueError("x and data must have the same number of columns.")
-
-    n, d = data.shape
-    if h is None:
-        h = (4/(d+2))**(1/(d+4))*(n**(-1/(d+4)))*np.mean(np.std(data, axis=0))
-    h = float(h)
-    if h <= 0:
-        raise ValueError("h must be positive.")
-    if verbose:
-        print(f"The current bandwidth is {h}.\n")
-
-    # Shape: (m, n, d)
-    diff = (x[:, None, :] - data[None, :, :]) / h
-    # Shape: (m, n)
-    sqdist = np.sum(diff**2, axis=2)
-
-    # Gaussian kernel average
-    kernel_vals = np.exp(-sqdist/2)
-    f_hat = np.mean(kernel_vals, axis=1) / ((2 * np.pi) ** (d / 2) * h**d)
-
-    return f_hat
+    kernel_vals, h = _gaussian_kernel(x, data, h, verbose)
+    d = data.shape[1]
+    normalizer = (2 * np.pi) ** (d / 2) * h**d
+    return np.mean(kernel_vals, axis=1) / normalizer
 
 
 def gaussian_ms_onestep(x, data, h=None, verbose=False):
@@ -174,34 +185,40 @@ def gaussian_ms_onestep(x, data, h=None, verbose=False):
         ms_new : ndarray of shape (m, d)
             One-step iterations of the Gaussian mean shift algorithm from "x".
     """
-    x = np.asarray(x, dtype=float)
     data = np.asarray(data, dtype=float)
+    kernel_vals, _ = _gaussian_kernel(x, data, h, verbose)
+    kernel_sums = np.sum(kernel_vals, axis=1)
+    if np.any(kernel_sums == 0):
+        raise FloatingPointError("All Gaussian-kernel weights vanished for at least one query point.")
+    return kernel_vals @ data / kernel_sums[:, None]
 
-    if x.ndim != 2 or data.ndim != 2:
-        raise ValueError("x and data must both be 2D arrays.")
-    if x.shape[1] != data.shape[1]:
-        raise ValueError("x and data must have the same number of columns.")
 
-    n, d = data.shape
-    if h is None:
-        h = (4/(d+2))**(1/(d+4))*(n**(-1/(d+4)))*np.mean(np.std(data, axis=0))
-    h = float(h)
-    if h <= 0:
-        raise ValueError("h must be positive.")
-    if verbose:
-        print(f"The current bandwidth is {h}.\n")
+def gaussian_kde_ms_onestep(x, data, h=None, verbose=False):
+    """Compute Gaussian KDE values and one mean-shift step together.
 
-    # Shape: (m, n, d)
-    diff = (x[:, None, :] - data[None, :, :]) / h
-    # Shape: (m, n)
-    sqdist = np.sum(diff**2, axis=2)
+    This is equivalent to calling :func:`gaussian_kde` and
+    :func:`gaussian_ms_onestep` with the same arguments, but the Gaussian
+    kernel matrix is constructed only once.
 
-    # Gaussian kernel average
-    kernel_vals = np.exp(-sqdist/2)
-    f_hat = np.sum(kernel_vals, axis=1).reshape(-1,1)
-    ms_new = np.dot(kernel_vals, data) / f_hat
-    
-    return ms_new
+    Returns
+    -------
+        f_hat : ndarray of shape (m,)
+            KDE evaluated at the query points.
+        ms_new : ndarray of shape (m, d)
+            One-step Gaussian mean-shift locations.
+    """
+    data = np.asarray(data, dtype=float)
+    kernel_vals, h = _gaussian_kernel(x, data, h, verbose)
+    kernel_sums = np.sum(kernel_vals, axis=1)
+    if np.any(kernel_sums == 0):
+        raise FloatingPointError(
+            "All Gaussian-kernel weights vanished for at least one query point.")
+
+    d = data.shape[1]
+    normalizer = data.shape[0] * (2 * np.pi) ** (d / 2) * h**d
+    f_hat = kernel_sums / normalizer
+    ms_new = kernel_vals @ data / kernel_sums[:, None]
+    return f_hat, ms_new
 
 
 def plot_clusters(X, clu, start, end, centers, directed=False, title=None):
