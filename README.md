@@ -21,7 +21,7 @@ GGDPC retains DPC's simple graph construction but uses one gradient ascent step 
   <em>GGDPC on pairs of consecutive eruption durations in the Old Faithful data: the directed graph, density waterfall, decision diagram, and induced dendrogram; see `Old_Faithful_Data.ipynb` for details.</em>
 </p>
 
-### GGDPC algorithm at a glance
+### GGDPC Algorithm At a Glance
 
 Given observations $\mathbf{X}_1,\ldots,\mathbf{X}_n$, GGDPC:
 
