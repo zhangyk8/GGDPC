@@ -5,7 +5,7 @@
 
 This repository contains the Python implementation of gradient-guided density peak clustering (GGDPC), together with the original density peak clustering (DPC) algorithm and several DPC variants.
 
-**Paper Reference**: Y. Zhang and Y.-C. Chen. *Gradient-Guided Density Peak Clustering* (2026+).
+**Paper Reference**: Y. Zhang and Y.-C. Chen. *[Gradient-Guided Density Peak Clustering](http://arxiv.org/abs/2610.01050)* (2026+).
 
 ## Overview
 
