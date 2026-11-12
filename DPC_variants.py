@@ -10,7 +10,11 @@ from collections import deque
 import warnings
 
 import numpy as np
-
+from sklearn.decomposition import PCA
+from sklearn.metrics import pairwise_distances
+from scipy.sparse import csr_matrix
+from scipy.sparse import SparseEfficiencyWarning
+from sklearn.manifold import Isomap
 
 #=======================================================================================#
 
@@ -121,8 +125,6 @@ def DPC_KNN_PCA(X, n_clusters, k=8, n_components=None, return_details=False):
         on k-nearest neighbors and principal component analysis. Knowledge-Based
         Systems, 99, 135-145.
     """
-    from sklearn.decomposition import PCA
-    from sklearn.metrics import pairwise_distances
 
     X, n_clusters = _validate_input(X, n_clusters)
     n_samples, n_features = X.shape
@@ -198,7 +200,6 @@ def SNN_DPC(X, n_clusters, k=4, scale=True, return_details=False):
         Liu, R., Wang, H. and Yu, X. (2018). Shared-nearest-neighbor-based clustering
         by fast search and find of density peaks. Information Sciences, 450, 200-226.
     """
-    from sklearn.metrics import pairwise_distances
 
     X, n_clusters = _validate_input(X, n_clusters)
     n_samples = X.shape[0]
@@ -373,7 +374,6 @@ def DPC_CE(X, n_clusters, dc_percent=2.0, path_distance_ratio=0.25,
         Guo, W. et al. (2022). Density peak clustering with connectivity estimation.
         Knowledge-Based Systems, 243, 108501.
     """
-    from sklearn.metrics import pairwise_distances
 
     X, n_clusters = _validate_input(X, n_clusters)
     n_samples = X.shape[0]
@@ -516,8 +516,6 @@ def DPC_DLP(X, n_clusters, neighbor_fraction=0.009, mu=2.0, sigma_scale=0.4,
         Seyedi, S. A. et al. (2019). Dynamic graph-based label propagation for
         density peaks clustering. Expert Systems with Applications, 115, 314-328.
     """
-    from scipy.sparse import csr_matrix
-    from sklearn.metrics import pairwise_distances
 
     X, n_clusters = _validate_input(X, n_clusters)
     n_samples = X.shape[0]
@@ -857,8 +855,6 @@ def DPC_MDNN(X, n_clusters, manifold_neighbors=5, min_cluster_size=0.01,
         manifold distance and natural nearest neighbors for network intrusion
         detection. Scientific Reports, 15, Article 92509.
     """
-    from scipy.sparse import SparseEfficiencyWarning
-    from sklearn.manifold import Isomap
 
     X, n_clusters = _validate_input(X, n_clusters)
     n_samples, n_features = X.shape

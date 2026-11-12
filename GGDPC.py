@@ -23,6 +23,8 @@ from dpc_helpers import (
     validate_distance_matrix,
     validate_update_locations,
 )
+from sklearn.neighbors import KernelDensity
+from sklearn.metrics import pairwise_distances
 from utils import gaussian_kde, gaussian_kde_ms_onestep, gaussian_ms_onestep
 
 
@@ -88,7 +90,6 @@ def DPC(X, den_est=None, dist_mat=None, bandwidth=None, den_thres=0, center_quan
     cutoff_distance = None
     # Compute density estimates if not provided
     if den_est is None:
-        from sklearn.neighbors import KernelDensity
         h = resolve_bandwidth(X_work, bandwidth)
         kde = KernelDensity(kernel="gaussian", bandwidth=h).fit(X_work)
         den_est = np.exp(kde.score_samples(X_work))
@@ -96,7 +97,6 @@ def DPC(X, den_est=None, dist_mat=None, bandwidth=None, den_thres=0, center_quan
         if den_est != "cutoff":
             raise ValueError('The only supported string value for den_est is "cutoff".')
         if dist_mat is None:
-            from sklearn.metrics import pairwise_distances
             dist_mat = pairwise_distances(X_work)
         den_est, cutoff_distance = cutoff_density(dist_mat, cutoff_quantile)
     else:
@@ -230,7 +230,6 @@ def GGDPC(X, den_est=None, grad_new=None, h_den=None, h_grad=None, den_thres=0, 
         if den_est != "cutoff":
             raise ValueError('The only supported string value for den_est is "cutoff".')
 
-        from sklearn.metrics import pairwise_distances
         dist_mat = pairwise_distances(X_work)
         den_est, cutoff_distance = cutoff_density(dist_mat, cutoff_quantile)
 

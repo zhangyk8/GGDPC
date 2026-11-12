@@ -1,7 +1,12 @@
 """Shared implementation helpers for density-peak clustering algorithms."""
 
 import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import pairwise_distances
+from scipy.spatial.distance import squareform
+from scipy.cluster.hierarchy import linkage
 
+#=======================================================================================#
 
 def validate_common_inputs(
     X,
@@ -46,8 +51,6 @@ def prepare_coordinates(X, scaling):
     """Create the coordinate system used by all internal distance calculations."""
     if not scaling:
         return X, None
-
-    from sklearn.preprocessing import StandardScaler
 
     scaler = StandardScaler().fit(X)
     return scaler.transform(X), scaler
@@ -268,7 +271,6 @@ def ggdpc_dendrogram(X, parents):
     if np.any(children == parents[children]):
         raise ValueError("A point cannot be its own parent.")
 
-    from sklearn.metrics import pairwise_distances
     euclidean_distances = pairwise_distances(X)
 
     # Make nonedges strictly larger than every possible graph-edge distance.
@@ -286,10 +288,8 @@ def ggdpc_dendrogram(X, parents):
     D[parents[children], children] = edge_lengths
 
     # scipy.linkage expects the upper triangle in condensed form.
-    from scipy.spatial.distance import squareform
     condensed_D = squareform(D, checks=False)
 
-    from scipy.cluster.hierarchy import linkage
     Z = linkage(condensed_D, method="single", optimal_ordering=True)
 
     return Z

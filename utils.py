@@ -9,6 +9,7 @@ Description: Utility functions for the Gradient-Guided Density Peak Clustering
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from scipy.spatial.distance import cdist
 
 #=====================================================================================#
 
@@ -131,7 +132,6 @@ def _gaussian_kernel(x, data, h=None, verbose=False):
     if verbose:
         print(f"The current bandwidth is {h}.\n")
 
-    from scipy.spatial.distance import cdist
     sqdist = cdist(x, data, metric="sqeuclidean")
 
     kernel_values = np.exp(-sqdist / (2 * h**2))

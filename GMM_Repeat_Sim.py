@@ -23,7 +23,6 @@ print(job_id)
 
 #=======================================================================================#
 
-results = {}
 
 def record_result(name, true_labels, pred_labels, elapsed):
     ari = adjusted_rand_score(true_labels, pred_labels)
@@ -37,19 +36,21 @@ def record_result(name, true_labels, pred_labels, elapsed):
     print(f"Runtime: {elapsed:.3f} seconds")
 
 for n in [500, 1000, 2000, 5000, 8000]:
-    X_dat, true_labels = sample_gaussian_mixture(n_samples=n, 
+    results = {}
+    X_dat, gmm_labels = sample_gaussian_mixture(n_samples=n, 
                                                  mu_lst=np.array([[0, 0], [1, 0]]), 
                                                  sigma_lst=np.array([0.3**2, 0.3**2]), 
                                                  random_state=job_id, return_labels=True)
+    true_labels = (X_dat[:, 0] > 0.5).astype(int)
 
     n_clusters = 2
-    center_quantile = 1 - n_clusters / len(X_dat)
+    # center_quantile = 1 - n_clusters / len(X_dat)
 
     # Original DPC
     start = time.perf_counter()
     h = None
     DPC_labels, DPC_det = DPC(X_dat, den_est=None, dist_mat=None, bandwidth=h, den_thres=0, 
-                              center_quantile=center_quantile, scaling=False, center_z=4, return_details=True)
+                              center_quantile=None, scaling=False, center_z=4, return_details=True)
     elapsed = time.perf_counter() - start
 
     record_result("DPC", true_labels, DPC_labels, elapsed)
@@ -59,7 +60,7 @@ for n in [500, 1000, 2000, 5000, 8000]:
     start = time.perf_counter()
     h = None
     GGDPC_labels, GGDPC_det = GGDPC(X_dat, den_est=None, grad_new=None, den_thres=0, 
-                                    h_den=h, h_grad=h, center_quantile=center_quantile, 
+                                    h_den=h, h_grad=h, center_quantile=None, 
                                     scaling=False, center_z=4, return_details=True, 
                                     graph_dist=True, dendro=False)
     elapsed = time.perf_counter() - start
